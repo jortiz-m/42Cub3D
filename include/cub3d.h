@@ -6,7 +6,7 @@
 /*   By: jortiz-m <jortiz-m@student.42malaga.com    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 13:06:37 by alba              #+#    #+#             */
-/*   Updated: 2025/07/16 12:18:07 by jortiz-m         ###   ########.fr       */
+/*   Updated: 2025/07/16 12:46:35 by jortiz-m         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -25,14 +25,23 @@
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
+#include <stdbool.h>
 
 /*********
 * MACROS *
 *********/
 
-# define WIN_WIDTH	1920
-# define WIN_HEIGHT	1080
+# define WIN_WIDTH		1920
+# define WIN_HEIGHT		1080
 # define TEXTURE_SIZE	64
+
+# define KEY_W			119
+# define KEY_A			97
+# define KEY_S			115
+# define KEY_D			100
+# define KEY_LEFT  		65361
+# define KEY_RIGHT 		65363
+# define KEY_ESC  		65307
 
 /*********
 * COLORS *
@@ -50,121 +59,165 @@
 * STRUCTURES *
 *************/
 
-// Color structure for RGB values
+// Enumeración de direcciones cardinales para orientación del jugador
+typedef enum e_direction
+{
+	NORTH,	// Norte
+	SOUTH,	// Sur
+	EAST,	// Este
+	WEST	// Oeste
+}	t_direction;
+
+// Estructura para manejar el ángulo y rotación del jugador
+typedef struct s_player_angle
+{
+	float	current_angle;	// Ángulo actual de la cámara/jugador
+	float	angle_speed;	// Velocidad de rotación
+	float	cos_angle;		// Coseno del ángulo (optimización)
+	float	sin_angle;		// Seno del ángulo (optimización)
+} t_angle;
+
+// Estados de movimiento del jugador (teclas presionadas)
+typedef struct s_player_move
+{
+	bool	forward;	// Moverse hacia adelante (W)
+	bool	back;		// Moverse hacia atrás (S)
+	bool	left;		// Moverse a la izquierda (A)
+	bool	right;		// Moverse a la derecha (D)
+}	t_move;
+
+// Estados de rotación del jugador (teclas presionadas)
+typedef struct s_player_rotate
+{
+	bool	left;	// Rotar hacia la izquierda (←)
+	bool	right;	// Rotar hacia la derecha (→)
+}	t_rotate;
+
+// Estructura para colores RGB
 typedef struct s_color
 {
-	int	r;
-	int	g;
-	int	b;
+	int	r;	// Componente rojo (0-255)
+	int	g;	// Componente verde (0-255)
+	int	b;	// Componente azul (0-255)
 }	t_color;
 
-// MLX image data structure
+// Estructura para imágenes de MLX (texturas y pantalla)
 typedef struct s_img
 {
-	void	*img;
-	char	*addr;
-	int		bits_per_pixel;
-	int		line_length;
-	int		endian;
-	int		width;
-	int		height;
+	void	*img;			// Puntero a la imagen MLX
+	char	*addr;			// Dirección de datos de píxeles
+	int		bits_per_pixel;	// Bits por píxel
+	int		line_length;	// Longitud de línea en bytes
+	int		endian;			// Orden de bytes
+	int		width;			// Ancho de la imagen
+	int		height;			// Alto de la imagen
 }	t_img;
 
-// Texture structure
+// Estructura para las 4 texturas de las paredes
 typedef struct s_texture
 {
-	t_img	north;
-	t_img	south;
-	t_img	east;
-	t_img	west;
+	t_img	north;	// Textura pared norte
+	t_img	south;	// Textura pared sur
+	t_img	east;	// Textura pared este
+	t_img	west;	// Textura pared oeste
 }	t_texture;
 
-// Player structure
+// Estructura principal del jugador
 typedef struct s_player
 {
-	double	x;			// Player X position
-	double	y;			// Player Y position
-	double	dir_x;		// Direction vector X
-	double	dir_y;		// Direction vector Y
-	double	plane_x;	// Camera plane X
-	double	plane_y;	// Camera plane Y
+	double	x;			// Posición X del jugador
+	double	y;			// Posición Y del jugador
+	double	dir_x;		// Vector dirección X (para raycasting)
+	double	dir_y;		// Vector dirección Y (para raycasting)
+	double	plane_x;	// Plano cámara X (para raycasting)
+	double	plane_y;	// Plano cámara Y (para raycasting)
+	
+	// Campos nuevos integrados
+	t_angle		angle;		// Información de ángulos
+	t_direction	dir;		// Dirección cardinal
+	t_move		move;		// Estados de movimiento
+	t_rotate	rotate;		// Estados de rotación
 }	t_player;
 
-// Map structure
+// Estructura del mapa del juego
 typedef struct s_map
 {
-	char	**grid;
-	int		width;
-	int		height;
-	int		player_count;
+	char	**grid;			// Matriz 2D del mapa ('1'=pared, '0'=espacio)
+	int		width;			// Ancho del mapa
+	int		height;			// Alto del mapa
+	int		player_count;	// Número de jugadores encontrados
 }	t_map;
 
-// Parsing data structure (temporary for file parsing)
+// Estructura temporal para parsear el archivo .cub
 typedef struct s_data
 {
-	int		file_rows;
-	char	**map_data;
-	char	*no_texture;
-	char	*so_texture;
-	char	*we_texture;
-	char	*ea_texture;
-	t_color	floor;
-	t_color	ceiling;
-	int		map_rows;
-	int		map_col;
+	int		file_rows;		// Número de líneas del archivo
+	char	**map_data;		// Datos del archivo en array
+	char	*no_texture;	// Ruta textura norte
+	char	*so_texture;	// Ruta textura sur
+	char	*we_texture;	// Ruta textura oeste
+	char	*ea_texture;	// Ruta textura este
+	t_color	floor;			// Color del suelo
+	t_color	ceiling;		// Color del techo
+	int		map_rows;		// Filas del mapa
+	int		map_col;		// Columnas del mapa
 }	t_data;
 
-// Main game structure
+// Estructura principal del juego (contiene todo)
 typedef struct s_game
 {
-	void		*mlx;
-	void		*window;
-	t_img		screen;
-	t_texture	textures;
-	t_player	player;
-	t_map		map;
-	t_data		data;
+	void		*mlx;		// Conexión MLX
+	void		*window;	// Ventana del juego
+	t_img		screen;		// Imagen de la pantalla
+	t_texture	textures;	// Todas las texturas
+	t_player	player;		// Datos del jugador
+	t_map		map;		// Datos del mapa
+	t_data		data;		// Datos de parsing temporal
 }	t_game;
 
 /************
 * FUNCTIONS *
 ************/
 
-// Argument validation and file parsing
-void	check_args(int argc, char **argv);
-void	open_file(char *argv, t_data *data);
-void	read_file(char *argv, t_data *data);
-void	file2array(char *argv, t_data *data);
+// Validación de argumentos y parseo de archivos
+void	check_args(int argc, char **argv);		// Verifica argumentos del programa
+void	open_file(char *argv, t_data *data);	// Abre y valida el archivo .cub
+void	read_file(char *argv, t_data *data);	// Lee el contenido del archivo
+void	file2array(char *argv, t_data *data);	// Convierte archivo a array
 
-// Texture parsing functions
-void	parse_no(char *no, t_data *data);
-void	parse_so(char *so, t_data *data);
-void	parse_we(char *we, t_data *data);
-void	parse_ea(char *ea, t_data *data);
+// Funciones de parseo de texturas
+void	parse_no(char *no, t_data *data);	// Parsea textura norte
+void	parse_so(char *so, t_data *data);	// Parsea textura sur
+void	parse_we(char *we, t_data *data);	// Parsea textura oeste
+void	parse_ea(char *ea, t_data *data);	// Parsea textura este
 
-// Game initialization and cleanup
-void	init_game(t_game *game);
-void	init_player(t_game *game, char direction, int x, int y);
-void	load_textures(t_game *game);
-int		close_win(t_game *game);
+// Manejo de eventos de teclado
+int		handle_key_press(int key, void *param);		// Cuando se presiona una tecla
+int		handle_key_release(int key, void *param);	// Cuando se suelta una tecla
 
-// MLX utilities
-void	my_mlx_pixel_put(t_img *img, int x, int y, int color);
-int		get_texture_color(t_img *texture, int x, int y);
+// Inicialización y limpieza del juego
+void	init_game(t_game *game);								// Inicializa estructuras del juego
+void	init_player(t_game *game, char direction, int x, int y);	// Inicializa posición del jugador
+void	load_textures(t_game *game);							// Carga texturas desde archivos
+int		close_win(t_game *game);								// Cierra ventana y libera memoria
 
-// Game loop and events
-int		game_loop(t_game *game);
-int		key_press(int keycode, t_game *game);
-int		key_release(int keycode, t_game *game);
+// Utilidades de MLX
+void	my_mlx_pixel_put(t_img *img, int x, int y, int color);	// Pone un pixel en la imagen
+int		get_texture_color(t_img *texture, int x, int y);		// Obtiene color de una textura
 
-// Raycasting
-void	raycast(t_game *game);
-void	render_frame(t_game *game);
+// Bucle del juego y eventos
+int		game_loop(t_game *game);			// Bucle principal del juego
+int		key_press(int keycode, t_game *game);	// Maneja teclas presionadas
+int		key_release(int keycode, t_game *game);	// Maneja teclas soltadas
 
-// Utils
-void	error_exit(char *message);
-void	free_game(t_game *game);
-int		create_rgb(int r, int g, int b);
+// Sistema de raycasting
+void	raycast(t_game *game);		// Algoritmo principal de raycasting
+void	render_frame(t_game *game);	// Renderiza un frame completo
+
+// Utilidades generales
+void	error_exit(char *message);		// Termina programa con error
+void	free_game(t_game *game);		// Libera toda la memoria del juego
+int		create_rgb(int r, int g, int b);	// Crea color RGB para MLX
 
 
 /******

@@ -86,7 +86,7 @@ void	init_game(t_game *game)
 		error_exit("Error creating window");
 	init_mlx_image(game);
 	mlx_hook(game->window, 17, 0, close_win, game);
-	mlx_hook(game->window, 2, 1L << 0, key_press, game);
-	mlx_hook(game->window, 3, 1L << 1, key_release, game);
+	mlx_hook(game->window, 2, 1L << 0, handle_key_press, game);
+	mlx_hook(game->window, 3, 1L << 1, handle_key_release, game);
 	mlx_loop_hook(game->mlx, game_loop, game);
 }
